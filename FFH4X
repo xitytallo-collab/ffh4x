@@ -1,0 +1,535 @@
+-- Limpar execuções anteriores para não duplicar nada na tela ou travar o jogo
+if _G.ESPConnection then _G.ESPConnection:Disconnect() end
+if _G.HitboxConnection then _G.HitboxConnection:Disconnect() end
+if _G.ExploitsConnection then _G.ExploitsConnection:Disconnect() end
+if _G.MagnetConnection then _G.MagnetConnection:Disconnect() end
+if _G.InfJumpConnection then _G.InfJumpConnection:Disconnect() end
+if _G.ESPObjects then
+    for _, obj in pairs(_G.ESPObjects) do
+        if obj.Box then obj.Box:Remove() end
+        if obj.Line then obj.Line:Remove() end
+        if obj.Name then obj.Name:Remove() end
+        if obj.Distance then obj.Distance:Remove() end
+        if obj.HealthBg then obj.HealthBg:Remove() end
+        if obj.HealthBar then obj.HealthBar:Remove() end
+    end
+end
+
+_G.ESPObjects = {}
+
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+
+-- Configurações Globais
+local ScriptSettings = {
+    AimbotEnabled = true,
+    HitboxHeadEnabled = true, 
+    HitboxSize = 2,           
+    
+    ESPEnabled = true,
+    ESPLine = true,
+    ESPBox = true,
+    ESPDistance = true,
+    ESPHealth = true,
+    ESPName = true,
+    
+    SpeedEnabled = false,
+    JumpEnabled = false,
+    
+    MagnetEnabled = false, 
+    InfJumpEnabled = false, 
+    
+    Thickness = 1.0 
+}
+
+local OriginalSizes = {}
+
+-- Criando a ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DaviXiter_ModMenu_System"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+-- ==========================================================
+-- MENU PRINCIPAL
+-- ==========================================================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(11, 14, 22) 
+MainFrame.BorderSizePixel = 0
+MainFrame.Position = UDim2.new(0.3, 0, 0.25, 0) 
+MainFrame.Size = UDim2.new(0, 480, 0, 320)
+MainFrame.Visible = false -- Começa invisível, abre no double click
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 4) 
+MainCorner.Parent = MainFrame
+
+-- ==========================================================
+-- SISTEMA DE DOIS CLIQUES NO TOPO DA TELA
+-- ==========================================================
+local lastClickTime = 0
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        local mousePos = input.Position
+        -- Verifica se o clique/toque foi no topo da tela (Y menor que 80 pixels)
+        if mousePos.Y <= 80 then
+            local currentTime = tick()
+            if currentTime - lastClickTime < 0.35 then -- Intervalo de clique duplo
+                MainFrame.Visible = not MainFrame.Visible
+            end
+            lastClickTime = currentTime
+        end
+    end
+end)
+
+-- Título Interno
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.BackgroundTransparency = 1
+Title.Position = UDim2.new(0.04, 0, 0.04, 0)
+Title.Size = UDim2.new(0, 180, 0, 35)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 20
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.RichText = true
+Title.Text = "<font color='rgb(0, 255, 127)'>FEA</font><font color='rgb(255, 255, 255)'>TURES</font>"
+
+local DividerLine = Instance.new("Frame")
+DividerLine.Parent = MainFrame
+DividerLine.BackgroundColor3 = Color3.fromRGB(25, 30, 42)
+DividerLine.BorderSizePixel = 0
+DividerLine.Position = UDim2.new(0.36, 0, 0.05, 0)
+DividerLine.Size = UDim2.new(0, 2, 0, 290)
+
+-- Container das Abas (Esquerda)
+local LeftPanel = Instance.new("ScrollingFrame")
+LeftPanel.Parent = MainFrame
+LeftPanel.BackgroundTransparency = 1
+LeftPanel.BorderSizePixel = 0
+LeftPanel.Position = UDim2.new(0.04, 0, 0.18, 0)
+LeftPanel.Size = UDim2.new(0, 140, 0, 245)
+LeftPanel.ScrollBarThickness = 0
+
+local LeftLayout = Instance.new("UIListLayout")
+LeftLayout.Parent = LeftPanel
+LeftLayout.Padding = UDim.new(0, 5)
+
+-- Criando os Painéis das 5 Abas
+local RightPanelAimbot = Instance.new("Frame")
+local RightPanelVisual = Instance.new("Frame")
+local RightPanelExploits = Instance.new("Frame")
+local RightPanelRage = Instance.new("Frame")
+local RightPanelInfo = Instance.new("Frame")
+
+local panels = {
+    Aimbot = RightPanelAimbot,
+    Visual = RightPanelVisual,
+    Exploits = RightPanelExploits,
+    Rage = RightPanelRage,
+    Info = RightPanelInfo
+}
+
+for name, panel in pairs(panels) do
+    panel.Name = "RightPanel" .. name
+    panel.Parent = MainFrame
+    panel.BackgroundTransparency = 1
+    panel.Position = UDim2.new(0.39, 0, 0.08, 0)
+    panel.Size = UDim2.new(0, 275, 0, 280)
+    panel.Visible = (name == "Aimbot")
+    
+    local layout = Instance.new("UIListLayout")
+    layout.Parent = panel
+    layout.Padding = UDim.new(0, 6)
+end
+
+-- Função para criar Checkbox
+local function CreateCheckbox(text, settingKey, parentPanel)
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, 0, 0, 26)
+    Container.BackgroundTransparency = 1
+    
+    local CheckBtn = Instance.new("TextButton")
+    CheckBtn.Size = UDim2.new(0, 18, 0, 18)
+    CheckBtn.Position = UDim2.new(0, 0, 0.15, 0)
+    CheckBtn.Font = Enum.Font.GothamBold
+    CheckBtn.TextSize = 14
+    CheckBtn.BackgroundColor3 = Color3.fromRGB(15, 19, 29)
+    
+    local CheckStroke = Instance.new("UIStroke")
+    CheckStroke.Color = Color3.fromRGB(35, 42, 58)
+    CheckStroke.Parent = CheckBtn
+    
+    local CheckCorner = Instance.new("UICorner")
+    CheckCorner.CornerRadius = UDim.new(0, 4)
+    CheckCorner.Parent = CheckBtn
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -30, 1, 0)
+    Label.Position = UDim2.new(0, 28, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.GothamSemibold
+    Label.Text = text
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255) 
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    
+    local function updateVisual()
+        if ScriptSettings[settingKey] then
+            CheckBtn.TextColor3 = Color3.fromRGB(0, 255, 127)
+            CheckBtn.Text = "✓"
+        else CheckBtn.Text = "" end
+    end
+    
+    CheckBtn.MouseButton1Click:Connect(function()
+        ScriptSettings[settingKey] = not ScriptSettings[settingKey]
+        updateVisual()
+    end)
+    
+    updateVisual()
+    CheckBtn.Parent = Container
+    Label.Parent = Container
+    Container.Parent = parentPanel
+end
+
+-- ==========================================================
+-- SISTEMA DE INTERAÇÃO DAS ABAS
+-- ==========================================================
+local tabButtons = {}
+
+local function HandleTabChange(tabName)
+    for name, panel in pairs(panels) do
+        panel.Visible = (name == tabName)
+    end
+end
+
+local function CreateTabButton(name, emoji, startsActive)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, 0, 0, 32)
+    Button.Font = Enum.Font.GothamBold
+    Button.TextSize = 13
+    Button.TextXAlignment = Enum.TextXAlignment.Left
+    Button.BackgroundColor3 = Color3.fromRGB(15, 19, 29)
+    Button.RichText = true
+    
+    local NeonStroke = Instance.new("UIStroke")
+    NeonStroke.Color = Color3.fromRGB(0, 255, 127) 
+    NeonStroke.Thickness = 1.5
+    NeonStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    NeonStroke.Enabled = false
+    NeonStroke.Parent = Button
+
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 5)
+    BtnCorner.Parent = Button
+    Button.Parent = LeftPanel
+
+    local function applyState(isActive)
+        if isActive then
+            Button.Text = "  " .. emoji .. "  <font color='rgb(255,255,255)'>" .. name .. "</font>"
+            NeonStroke.Enabled = true
+        else
+            Button.Text = "  " .. emoji .. "  <font color='rgb(160,160,160)'>" .. name .. "</font>"
+            NeonStroke.Enabled = false
+        end
+    end
+
+    Button.MouseButton1Click:Connect(function()
+        for _, tData in ipairs(tabButtons) do
+            tData.Update(false)
+        end
+        applyState(true)
+        HandleTabChange(name)
+    end)
+
+    applyState(startsActive)
+    table.insert(tabButtons, {Button = Button, Update = applyState})
+end
+
+-- Criando as 5 Abas
+CreateTabButton("Aimbot", "🎯", true)
+CreateTabButton("Visual", "👁️", false)
+CreateTabButton("Exploits", "💣", false)
+CreateTabButton("Rage", "💀", false)
+CreateTabButton("Info", "🔄", false)
+
+-- ABA 1: AIMBOT
+CreateCheckbox("Hitbox Cabeça", "HitboxHeadEnabled", RightPanelAimbot)
+
+local SliderContainer = Instance.new("Frame")
+SliderContainer.Size = UDim2.new(1, -10, 0, 45)
+SliderContainer.BackgroundTransparency = 1
+SliderContainer.Parent = RightPanelAimbot
+
+local SliderLabel = Instance.new("TextLabel")
+SliderLabel.Size = UDim2.new(0.6, 0, 0.4, 0)
+SliderLabel.BackgroundTransparency = 1
+SliderLabel.Font = Enum.Font.GothamBold
+SliderLabel.Text = "Tamanho da Hitbox"
+SliderLabel.TextColor3 = Color3.fromRGB(255, 255, 255) 
+SliderLabel.TextSize = 12
+SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+SliderLabel.Parent = SliderContainer
+
+local ValueLabel = Instance.new("TextLabel")
+ValueLabel.Size = UDim2.new(0, 40, 0.4, 0)
+ValueLabel.Position = UDim2.new(0.85, 0, 0, 0)
+ValueLabel.BackgroundTransparency = 1
+ValueLabel.Font = Enum.Font.GothamBold
+ValueLabel.Text = tostring(ScriptSettings.HitboxSize)
+ValueLabel.TextColor3 = Color3.fromRGB(0, 255, 127) 
+ValueLabel.TextSize = 13
+ValueLabel.Parent = SliderContainer
+
+local SliderTrack = Instance.new("Frame")
+SliderTrack.Size = UDim2.new(0.95, 0, 0, 6)
+SliderTrack.Position = UDim2.new(0, 0, 0.65, 0)
+SliderTrack.BackgroundColor3 = Color3.fromRGB(35, 42, 58)
+SliderTrack.Parent = SliderContainer
+local RoundTrack = Instance.new("UICorner", SliderTrack) RoundTrack.CornerRadius = UDim.new(0,3)
+
+local SliderBall = Instance.new("TextButton")
+SliderBall.Size = UDim2.new(0, 16, 0, 16)
+local initialPct = ScriptSettings.HitboxSize / 12
+SliderBall.Position = UDim2.new(initialPct, -8, -0.8, 0)
+SliderBall.BackgroundColor3 = Color3.fromRGB(0, 255, 127) 
+SliderBall.Text = ""
+SliderBall.Parent = SliderTrack
+local RoundBall = Instance.new("UICorner", SliderBall) RoundBall.CornerRadius = UDim.new(1,0)
+
+local sliderDragging = false
+
+SliderBall.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliderDragging = true end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliderDragging = false end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if sliderDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local trackPos = SliderTrack.AbsolutePosition.X
+        local trackSize = SliderTrack.AbsoluteSize.X
+        local pct = math.clamp((input.Position.X - trackPos) / trackSize, 0, 1)
+        SliderBall.Position = UDim2.new(pct, -8, -0.8, 0)
+        local calculatedValue = math.floor(pct * 12)
+        ScriptSettings.HitboxSize = calculatedValue
+        ValueLabel.Text = tostring(calculatedValue)
+    end
+end)
+
+-- ABA 2: VISUAL
+CreateCheckbox("Enable ESP", "ESPEnabled", RightPanelVisual)
+CreateCheckbox("Show Box", "ESPBox", RightPanelVisual)
+CreateCheckbox("Show Line", "ESPLine", RightPanelVisual)
+CreateCheckbox("Show Name", "ESPName", RightPanelVisual)
+CreateCheckbox("Show Distance", "ESPDistance", RightPanelVisual)
+CreateCheckbox("Show Health", "ESPHealth", RightPanelVisual)
+
+-- ABA 3: EXPLOITS
+CreateCheckbox("Speed Hack", "SpeedEnabled", RightPanelExploits)
+CreateCheckbox("Super Jump", "JumpEnabled", RightPanelExploits)
+
+-- ABA 4: RAGE
+CreateCheckbox("Enable Rage Mode", "AimbotEnabled", RightPanelRage)
+CreateCheckbox("Magnet (Puxar na Frente)", "MagnetEnabled", RightPanelRage)
+CreateCheckbox("Infinite Jump", "InfJumpEnabled", RightPanelRage)
+
+-- ABA 5: INFO
+local InfoLabel = Instance.new("TextLabel")
+InfoLabel.Size = UDim2.new(1, -10, 0, 40)
+InfoLabel.BackgroundTransparency = 1
+InfoLabel.Font = Enum.Font.GothamBold
+InfoLabel.Text = "Criado por Davi Xiter"
+InfoLabel.TextColor3 = Color3.fromRGB(0, 255, 127) 
+InfoLabel.TextSize = 16
+InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+InfoLabel.Parent = RightPanelInfo
+
+
+-- ==========================================================
+-- SISTEMAS INTERNOS
+-- ==========================================================
+
+-- Motor de Velocidade e Pulo
+_G.ExploitsConnection = game:GetService("RunService").Heartbeat:Connect(function()
+    local char = LocalPlayer.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if ScriptSettings.SpeedEnabled then
+            humanoid.WalkSpeed = 60
+        else
+            humanoid.WalkSpeed = 16
+        end
+        
+        if ScriptSettings.JumpEnabled then
+            humanoid.JumpPower = 120
+        else
+            humanoid.JumpPower = 50
+        end
+    end
+end)
+
+-- Motor do Magnet (Puxa na frente)
+_G.MagnetConnection = game:GetService("RunService").Heartbeat:Connect(function()
+    if ScriptSettings.MagnetEnabled then
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character then
+                local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                if hrp and humanoid and humanoid.Health > 0 then
+                    hrp.CFrame = Camera.CFrame * CFrame.new(0, 0, -7)
+                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end
+    end
+end)
+
+-- Motor do Infinite Jump
+_G.InfJumpConnection = UserInputService.JumpRequest:Connect(function()
+    if ScriptSettings.InfJumpEnabled then
+        local char = LocalPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+-- Motor de Expandir Hitbox Cabeça
+_G.HitboxConnection = game:GetService("RunService").Heartbeat:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+            if head and head:IsA("BasePart") and humanoid and humanoid.Health > 0 then
+                if not OriginalSizes[player] then OriginalSizes[player] = head.Size end
+                if ScriptSettings.AimbotEnabled and ScriptSettings.HitboxHeadEnabled and ScriptSettings.HitboxSize > 0 then
+                    local targetScale = 1 + (ScriptSettings.HitboxSize * 0.8)
+                    head.Size = Vector3.new(targetScale, targetScale, targetScale)
+                    head.CanCollide = false
+                    head.Transparency = 0.4 
+                else
+                    if OriginalSizes[player] then head.Size = OriginalSizes[player]; head.Transparency = 0 end
+                end
+            end
+        end
+    end
+end)
+
+-- Renderizador do ESP (Linha saindo do Topo)
+local function ObterCorVisibilidade(targetPart, targetCharacter)
+    local origem = Camera.CFrame.Position
+    local direcao = targetPart.Position - origem
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances = {LocalPlayer.Character}
+    local resultado = Workspace:Raycast(origem, direcao, params)
+    if resultado and resultado.Instance:IsDescendantOf(targetCharacter) then return Color3.fromRGB(0, 255, 127) end
+    return Color3.fromRGB(255, 30, 30) 
+end
+
+local function CreateESP(player)
+    if player == LocalPlayer then return end
+    local objects = {
+        Box = Drawing.new("Square"), Line = Drawing.new("Line"),
+        Name = Drawing.new("Text"), Distance = Drawing.new("Text"),
+        HealthBg = Drawing.new("Square"), HealthBar = Drawing.new("Square")
+    }
+    objects.Box.Visible = false; objects.Box.Thickness = ScriptSettings.Thickness; objects.Box.Filled = false
+    objects.Line.Visible = false; objects.Line.Thickness = ScriptSettings.Thickness
+    objects.Name.Visible = false; objects.Name.Color = Color3.fromRGB(255,255,255); objects.Name.Size = 13; objects.Name.Center = true; objects.Name.Outline = false
+    objects.Distance.Visible = false; objects.Distance.Color = Color3.fromRGB(255,255,255); objects.Distance.Size = 12; objects.Distance.Center = true; objects.Distance.Outline = false
+    objects.HealthBg.Visible = false; objects.HealthBg.Color = Color3.fromRGB(40, 40, 40); objects.HealthBg.Filled = true
+    objects.HealthBar.Visible = false; objects.HealthBar.Filled = true
+    _G.ESPObjects[player] = objects
+end
+
+local function RemoveESP(player)
+    if _G.ESPObjects[player] then
+        _G.ESPObjects[player].Box:Remove(); _G.ESPObjects[player].Line:Remove(); _G.ESPObjects[player].Name:Remove()
+        _G.ESPObjects[player].Distance:Remove(); _G.ESPObjects[player].HealthBg:Remove(); _G.ESPObjects[player].HealthBar:Remove()
+        _G.ESPObjects[player] = nil
+    end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do CreateESP(p) end
+Players.PlayerAdded:Connect(CreateESP)
+Players.PlayerRemoving:Connect(RemoveESP)
+
+_G.ESPConnection = game:GetService("RunService").RenderStepped:Connect(function()
+    if not ScriptSettings.ESPEnabled then
+        for _, obj in pairs(_G.ESPObjects) do
+            obj.Box.Visible = false; obj.Line.Visible = false; obj.Name.Visible = false; obj.Distance.Visible = false; obj.HealthBg.Visible = false; obj.HealthBar.Visible = false
+        end
+        return
+    end
+
+    for player, obj in pairs(_G.ESPObjects) do
+        local char = player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        
+        if char and hrp and humanoid and humanoid.Health > 0 then
+            local hrpPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if onScreen then
+                local corDinamica = ObterCorVisibilidade(hrp, char)
+                local distance = (Camera.CFrame.Position - hrp.Position).Magnitude
+                local scale = (1 / distance) * 1000
+                local width = math.clamp(scale * 1.6, 10, 500)
+                local height = math.clamp(scale * 2.2, 15, 700)
+                local boxX = hrpPos.X - (width / 2)
+                local boxY = hrpPos.Y - (height / 2)
+                
+                if ScriptSettings.ESPBox then
+                    obj.Box.Size = Vector2.new(width, height)
+                    obj.Box.Position = Vector2.new(boxX, boxY)
+                    obj.Box.Color = corDinamica
+                    obj.Box.Visible = true
+                else obj.Box.Visible = false end
+                
+                if ScriptSettings.ESPLine then
+                    -- MODIFICADO: Agora sai do Topo Central (X / 2, Y = 0)
+                    obj.Line.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
+                    obj.Line.To = Vector2.new(hrpPos.X, hrpPos.Y)
+                    obj.Line.Color = corDinamica
+                    obj.Line.Visible = true
+                else obj.Line.Visible = false end
+                
+                if ScriptSettings.ESPName then
+                    obj.Name.Text = player.Name
+                    obj.Name.Position = Vector2.new(hrpPos.X, boxY - 16)
+                    obj.Name.Visible = true
+                else obj.Name.Visible = false end
+                
+                if ScriptSettings.ESPDistance then
+                    obj.Distance.Text = math.floor(distance) .. " studs"
+                    obj.Distance.Position = Vector2.new(hrpPos.X, boxY + height + 2)
+                    obj.Distance.Visible = true
+                else obj.Distance.Visible = false end
+                
+                if ScriptSettings.ESPHealth then
+                    local healthPct = humanoid.Health / humanoid.MaxHealth
+                    local barHeight = height * healthPct
+                    obj.HealthBg.Size = Vector2.new(3, height)
+                    obj.HealthBg.Position = Vector2.new(boxX - 6, boxY)
+                    obj.HealthBg.Visible = true
+                    
+                    obj.HealthBar.Size = Vector2.new(3, barHeight)
+                    obj.HealthBar.Position = Vector2.new(boxX - 6, boxY + height - barHeight)
+                    obj.HealthBar.Color = Color3.fromRGB(0, 255, 127)
+                    obj.HealthBar.Visible = true
+                else obj.HealthBg.Visible = false; obj.HealthBar.Visible = false end
+            else
+                obj.Box.Visible = false; obj.Line.Visible = false; obj.Name.Visible = false; obj.Distance.Visible = false; obj.HealthBg.Visible = false; obj.HealthBar.Visible = false
+            end
+        else
+            obj.Box.Visible = false; obj.Line.Visible = false; obj.Name.Visible = false; obj.Distance.Visible = false; obj.HealthBg.Visible = false; obj.HealthBar.Visible = false
+        end
+    end
+end)
